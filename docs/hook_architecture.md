@@ -27,7 +27,7 @@ flowchart LR
   end
   subgraph Host
     T[Task / Agent Runtime]
-    P[SYSTEM_PROMPT (src/core/prompts/system.ts)]
+    P[SYSTEM_PROMPT]
     D[Tool Dispatcher]
     H[Hook Engine]
   end
