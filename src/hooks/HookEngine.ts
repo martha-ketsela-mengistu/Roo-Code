@@ -11,7 +11,7 @@ export type HookContext = {
 }
 
 export type PreHookResult =
-	| { action: "allow" }
+	| { action: "allow"; payload?: Record<string, unknown> }
 	| { action: "block"; error: { code: string; message: string } }
 	| { action: "waitForApproval"; approvalId: string }
 
@@ -40,11 +40,15 @@ export class HookEngine {
 
 	// Run PreHooks in sequence. If any hook blocks, short-circuit and return it.
 	async runPreHooks(ctx: HookContext): Promise<PreHookResult> {
+		let mergedPayload: Record<string, unknown> | undefined = undefined
 		for (const hook of this.preHooks) {
 			try {
 				const res = await hook(ctx)
 				if (res.action === "block" || res.action === "waitForApproval") {
 					return res
+				}
+				if (res.action === "allow" && res.payload) {
+					mergedPayload = { ...(mergedPayload ?? {}), ...res.payload }
 				}
 			} catch (err) {
 				console.error("PreHook threw error:", err)
@@ -52,7 +56,7 @@ export class HookEngine {
 				return { action: "block", error: { code: "HOOK_ERROR", message: String(err) } }
 			}
 		}
-		return { action: "allow" }
+		return { action: "allow", payload: mergedPayload }
 	}
 
 	// Run PostHooks but don't block on errors; log them instead.

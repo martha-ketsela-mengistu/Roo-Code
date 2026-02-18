@@ -47,6 +47,7 @@ export const toolParamNames = [
 	"mode",
 	"message",
 	"cwd",
+	"intent_id",
 	"follow_up",
 	"task",
 	"size",
@@ -115,6 +116,7 @@ export type NativeToolArgs = {
 	update_todo_list: { todos: string }
 	use_mcp_tool: { server_name: string; tool_name: string; arguments?: Record<string, unknown> }
 	write_to_file: { path: string; content: string }
+	select_active_intent: { intent_id: string }
 	// Add more tools as they are migrated to native protocol
 }
 
@@ -197,6 +199,11 @@ export interface WriteToFileToolUse extends ToolUse<"write_to_file"> {
 	params: Partial<Pick<Record<ToolParamName, string>, "path" | "content">>
 }
 
+export interface SelectActiveIntentToolUse extends ToolUse<"select_active_intent"> {
+	name: "select_active_intent"
+	params: Partial<Pick<Record<ToolParamName, string>, "intent_id">>
+}
+
 export interface CodebaseSearchToolUse extends ToolUse<"codebase_search"> {
 	name: "codebase_search"
 	params: Partial<Pick<Record<ToolParamName, string>, "query" | "path">>
@@ -269,6 +276,7 @@ export const TOOL_DISPLAY_NAMES: Record<ToolName, string> = {
 	read_file: "read files",
 	read_command_output: "read command output",
 	write_to_file: "write files",
+	select_active_intent: "select active intent",
 	apply_diff: "apply changes",
 	edit: "edit files",
 	search_and_replace: "apply changes using search and replace",
@@ -307,7 +315,7 @@ export const TOOL_GROUPS: Record<ToolGroup, ToolGroupConfig> = {
 		tools: ["use_mcp_tool", "access_mcp_resource"],
 	},
 	modes: {
-		tools: ["switch_mode", "new_task"],
+		tools: ["switch_mode", "new_task", "select_active_intent"],
 		alwaysAvailable: true,
 	},
 }

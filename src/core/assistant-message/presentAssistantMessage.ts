@@ -40,6 +40,7 @@ import { codebaseSearchTool } from "../tools/CodebaseSearchTool"
 
 import { formatResponse } from "../prompts/responses"
 import { sanitizeToolUseId } from "../../utils/tool-id"
+import { defaultHookEngine } from "../../hooks/HookEngine"
 
 /**
  * Processes and presents assistant message content to the user interface.
@@ -176,6 +177,19 @@ export async function presentAssistantMessage(cline: Task) {
 					if (imageBlocks.length > 0) {
 						cline.userMessageContent.push(...imageBlocks)
 					}
+
+					// Fire-and-forget post-hooks for this tool result
+					try {
+						defaultHookEngine
+							.runPostHooks({
+								toolName: mcpBlock.name,
+								params: (mcpBlock.arguments as any) ?? {},
+								result: resultContent,
+							})
+							.catch((err) => console.error("PostHook error:", err))
+					} catch (err) {
+						console.error("PostHook scheduling error:", err)
+					}
 				}
 
 				hasToolResult = true
@@ -267,6 +281,32 @@ export async function presentAssistantMessage(cline: Task) {
 					tool_name: mcpBlock.toolName,
 					arguments: mcpBlock.arguments,
 				},
+			}
+
+			// Run pre-hooks for MCP tool use
+			try {
+				const preCtx = {
+					toolName: syntheticToolUse.name,
+					params: syntheticToolUse.nativeArgs ?? syntheticToolUse.params ?? {},
+					intentId: (syntheticToolUse.nativeArgs as any)?.intent_id ?? undefined,
+				}
+				const preRes = await defaultHookEngine.runPreHooks(preCtx)
+				if (preRes.action === "block") {
+					pushToolResult(formatResponse.toolError(preRes.error?.message ?? "Blocked by policy"))
+					break
+				} else if (preRes.action === "waitForApproval") {
+					const approved = await defaultHookEngine.requestApproval(
+						`Tool ${toolDescription()} requires approval to run. Approve?`,
+					)
+					if (!approved) {
+						pushToolResult(formatResponse.toolDenied())
+						break
+					}
+				}
+			} catch (err) {
+				console.error("Error running pre-hooks for MCP tool:", err)
+				pushToolResult(formatResponse.toolError("Internal hook error"))
+				break
 			}
 
 			await useMcpToolTool.handle(cline, syntheticToolUse, {
@@ -488,6 +528,19 @@ export async function presentAssistantMessage(cline: Task) {
 					cline.userMessageContent.push(...imageBlocks)
 				}
 
+				// Fire-and-forget post-hooks for this tool result
+				try {
+					defaultHookEngine
+						.runPostHooks({
+							toolName: block.name,
+							params: (block.nativeArgs as any) ?? block.params ?? {},
+							result: resultContent,
+						})
+						.catch((err) => console.error("PostHook error:", err))
+				} catch (err) {
+					console.error("PostHook scheduling error:", err)
+				}
+
 				hasToolResult = true
 			}
 
@@ -673,6 +726,72 @@ export async function presentAssistantMessage(cline: Task) {
 					)
 					break
 				}
+			}
+
+			// Run pre-hooks for native tool use (non-MCP)
+			try {
+				const preCtx = {
+					toolName: block.name,
+					params: (block.nativeArgs as any) ?? block.params ?? {},
+					intentId: (block.nativeArgs as any)?.intent_id ?? block.params?.intent_id,
+				}
+				const preRes = await defaultHookEngine.runPreHooks(preCtx)
+				if (preRes.action === "block") {
+					cline.pushToolResultToUserContent({
+						type: "tool_result",
+						tool_use_id: sanitizeToolUseId(toolCallId),
+						content: formatResponse.toolError(preRes.error?.message ?? "Blocked by policy"),
+						is_error: true,
+					})
+					break
+				} else if (preRes.action === "waitForApproval") {
+					const approved = await defaultHookEngine.requestApproval(
+						`Tool ${toolDescription()} requires approval to run. Approve?`,
+					)
+					if (!approved) {
+						cline.pushToolResultToUserContent({
+							type: "tool_result",
+							tool_use_id: sanitizeToolUseId(toolCallId),
+							content: formatResponse.toolDenied(),
+							is_error: true,
+						})
+						break
+					}
+				}
+
+				// If a pre-hook provided a payload (e.g., intent_context_xml), return it as the tool_result
+				if (preRes.action === "allow" && preRes.payload && (preRes.payload as any).intent_context_xml) {
+					const xml = String((preRes.payload as any).intent_context_xml)
+					cline.pushToolResultToUserContent({
+						type: "tool_result",
+						tool_use_id: sanitizeToolUseId(toolCallId),
+						content: xml,
+					})
+
+					// Fire post-hooks with the produced result
+					try {
+						defaultHookEngine
+							.runPostHooks({
+								toolName: block.name,
+								params: preCtx.params ?? {},
+								result: xml,
+							})
+							.catch((err) => console.error("PostHook error:", err))
+					} catch (err) {
+						console.error("PostHook scheduling error:", err)
+					}
+
+					break
+				}
+			} catch (err) {
+				console.error("Error running pre-hooks for tool use:", err)
+				cline.pushToolResultToUserContent({
+					type: "tool_result",
+					tool_use_id: sanitizeToolUseId(toolCallId),
+					content: formatResponse.toolError("Internal hook error"),
+					is_error: true,
+				})
+				break
 			}
 
 			switch (block.name) {
