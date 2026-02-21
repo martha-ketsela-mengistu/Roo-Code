@@ -57,6 +57,65 @@ function parseSimpleActiveIntentsYaml(yamlText: string) {
 	return intents
 }
 
+type TraceFileEntry = {
+	relative_path?: string
+	conversations?: Array<{
+		ranges?: Array<{ content_hash?: string }>
+		related?: Array<{ type?: string; value?: string }>
+	}>
+}
+
+type TraceRecord = {
+	id?: string
+	timestamp?: string
+	files?: TraceFileEntry[]
+	intent_id?: string
+	related?: Array<{ type?: string; value?: string }>
+}
+
+async function loadRelatedTraceContext(orchestrDir: string, intentId: string): Promise<string[]> {
+	const tracePath = path.join(orchestrDir, "agent_trace.jsonl")
+	let raw = ""
+	try {
+		raw = await fs.readFile(tracePath, "utf8")
+	} catch {
+		// Optional in Phase 1; absence should not block select_active_intent.
+		return []
+	}
+
+	const lines = raw
+		.split(/\r?\n/)
+		.map((l) => l.trim())
+		.filter(Boolean)
+		.slice(-200)
+
+	const related: string[] = []
+	for (const line of lines) {
+		try {
+			const rec = JSON.parse(line) as TraceRecord
+			const topRelated = (rec.related ?? []).some((r) => String(r?.value ?? "") === intentId)
+			const directIntent = String(rec.intent_id ?? "") === intentId
+			const fileRelated = (rec.files ?? []).some((f) =>
+				(f.conversations ?? []).some((c) => (c.related ?? []).some((r) => String(r?.value ?? "") === intentId)),
+			)
+			if (!topRelated && !directIntent && !fileRelated) continue
+
+			const filePath = (rec.files ?? []).find((f) => f.relative_path)?.relative_path ?? "unknown"
+			const hash =
+				(rec.files ?? [])
+					.flatMap((f) => f.conversations ?? [])
+					.flatMap((c) => c.ranges ?? [])
+					.find((r) => r.content_hash)?.content_hash ?? "unknown"
+			const ts = rec.timestamp ?? "unknown"
+			related.push(`${ts} | ${filePath} | ${hash}`)
+		} catch {
+			// Ignore malformed lines and continue scanning.
+		}
+	}
+
+	return related.slice(-5)
+}
+
 const hook = async (ctx: { toolName: string; params: Record<string, unknown> }) => {
 	if (ctx.toolName !== "select_active_intent") return { action: "allow" } as PreHookResult
 
@@ -84,7 +143,7 @@ const hook = async (ctx: { toolName: string; params: Record<string, unknown> }) 
 		if (!intentId) {
 			return {
 				action: "block",
-				error: { code: "MISSING_INTENT_ID", message: "You must supply an intent_id." },
+				error: { code: "MISSING_INTENT_ID", message: "You must cite a valid active Intent ID." },
 			} as PreHookResult
 		}
 		const found = intents.find((it) => String(it.id) === intentId)
@@ -118,6 +177,7 @@ const hook = async (ctx: { toolName: string; params: Record<string, unknown> }) 
 		}
 		xmlLines.push(`</intent_context>`)
 		const xml = xmlLines.join("\n")
+		const relatedTraceContext = await loadRelatedTraceContext(orchestrDir, intentId)
 
 		// Ensure intent_contexts dir
 		const outDir = path.join(orchestrDir, "intent_contexts")
@@ -126,7 +186,13 @@ const hook = async (ctx: { toolName: string; params: Record<string, unknown> }) 
 		await fs.writeFile(outPath, xml, "utf8")
 
 		// Return the XML payload so the dispatcher can supply it as a tool result
-		return { action: "allow", payload: { intent_context_xml: xml } } as PreHookResult
+		return {
+			action: "allow",
+			payload: {
+				intent_context_xml: xml,
+				intent_trace_context: relatedTraceContext,
+			},
+		} as PreHookResult
 	} catch (err) {
 		console.error("selectActiveIntentPreHook error:", err)
 		return { action: "block", error: { code: "HOOK_IO_ERROR", message: String(err) } } as PreHookResult
