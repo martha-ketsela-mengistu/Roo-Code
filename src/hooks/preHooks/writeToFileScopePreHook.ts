@@ -143,6 +143,40 @@ const hook = async (ctx: {
 		} as PreHookResult
 	}
 
+	if (ctx.toolName === "write_to_file") {
+		const providedIntentId = String(ctx.params.intent_id ?? "").trim()
+		const mutationClass = String(ctx.params.mutation_class ?? "").trim()
+		const validMutationClass = mutationClass === "AST_REFACTOR" || mutationClass === "INTENT_EVOLUTION"
+
+		if (!providedIntentId || providedIntentId !== intentId) {
+			return {
+				action: "block",
+				error: {
+					code: "INTENT_ID_MISMATCH",
+					message: toPolicyErrorJson(
+						"INTENT_ID_MISMATCH",
+						"write_to_file requires intent_id matching the selected active intent.",
+						{ selected_intent_id: intentId, provided_intent_id: providedIntentId || null },
+					),
+				},
+			} as PreHookResult
+		}
+
+		if (!validMutationClass) {
+			return {
+				action: "block",
+				error: {
+					code: "INVALID_MUTATION_CLASS",
+					message: toPolicyErrorJson(
+						"INVALID_MUTATION_CLASS",
+						"write_to_file requires mutation_class set to AST_REFACTOR or INTENT_EVOLUTION.",
+						{ provided_mutation_class: mutationClass || null },
+					),
+				},
+			} as PreHookResult
+		}
+	}
+
 	const targets = extractTargetPaths(ctx.toolName, ctx.params)
 	if (targets.length === 0) {
 		return { action: "allow" } as PreHookResult

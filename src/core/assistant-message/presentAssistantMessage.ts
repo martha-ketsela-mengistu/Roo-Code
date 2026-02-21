@@ -185,6 +185,8 @@ export async function presentAssistantMessage(cline: Task) {
 							.runPostHooks({
 								toolName: mcpBlock.name,
 								params: (mcpBlock.arguments as any) ?? {},
+								intentId: (mcpBlock.arguments as any)?.intent_id ?? undefined,
+								userSessionId: `${cline.taskId}.${cline.instanceId}`,
 								result: resultContent,
 							})
 							.catch((err) => console.error("PostHook error:", err))
@@ -536,6 +538,8 @@ export async function presentAssistantMessage(cline: Task) {
 						.runPostHooks({
 							toolName: block.name,
 							params: (block.nativeArgs as any) ?? block.params ?? {},
+							intentId: (block.nativeArgs as any)?.intent_id ?? block.params?.intent_id,
+							userSessionId: `${cline.taskId}.${cline.instanceId}`,
 							result: resultContent,
 						})
 						.catch((err) => console.error("PostHook error:", err))
@@ -787,6 +791,8 @@ export async function presentAssistantMessage(cline: Task) {
 							.runPostHooks({
 								toolName: block.name,
 								params: preCtx.params ?? {},
+								intentId: preCtx.intentId,
+								userSessionId: preCtx.userSessionId,
 								result: contextResult,
 							})
 							.catch((err) => console.error("PostHook error:", err))

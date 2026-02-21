@@ -3,5 +3,6 @@ import "./preHooks/selectActiveIntentPreHook"
 import "./preHooks/handshakeGatePreHook"
 import "./preHooks/writeToFileScopePreHook"
 import "./preHooks/destructiveToolApprovalPreHook"
+import "./postHooks/writeToFileTracePostHook"
 
 export * from "./HookEngine"
