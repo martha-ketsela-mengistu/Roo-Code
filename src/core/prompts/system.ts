@@ -65,7 +65,7 @@ async function generatePrompt(
 	const { roleDefinition, baseInstructions } = getModeSelection(mode, promptComponent, customModeConfigs)
 
 	// Enforce the select_active_intent handshake: agent must select intent before mutating code
-	const handshakeInstruction = `You are an Intent-Driven Architect. You CANNOT write code immediately. Your first action MUST be to analyze the user request and call select_active_intent(intent_id) to load the necessary context. Do not perform any destructive or mutating actions until the select_active_intent handshake returns a valid intent context.`
+	const handshakeInstruction = `You are an Intent-Driven Architect. You CANNOT write code immediately. First analyze the user request. If an intent id is not explicit, call read_file on .orchestration/active_intents.yaml, choose the best-matching intent_id, then call select_active_intent(intent_id) to load intent context. Do not perform any destructive or mutating actions until the select_active_intent handshake returns a valid intent context.`
 
 	// Check if MCP functionality should be included
 	const hasMcpGroup = modeConfig.groups.some((groupEntry) => getGroupName(groupEntry) === "mcp")

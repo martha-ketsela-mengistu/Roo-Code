@@ -82,6 +82,15 @@ export const defaultHookEngine = new HookEngine()
 
 // Small helper to classify destructive tools (expand as needed)
 export function isDestructiveTool(toolName: string): boolean {
-	const destructive = ["write_to_file", "execute_command", "apply_patch", "edit_file", "apply_diff"]
+	const destructive = [
+		"write_to_file",
+		"execute_command",
+		"apply_patch",
+		"edit_file",
+		"apply_diff",
+		"edit",
+		"search_and_replace",
+		"search_replace",
+	]
 	return destructive.includes(toolName)
 }
