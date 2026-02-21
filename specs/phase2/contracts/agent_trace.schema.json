@@ -1,0 +1,44 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"title": "agent_trace entry",
+	"type": "object",
+	"required": ["id", "timestamp", "files"],
+	"properties": {
+		"id": { "type": "string" },
+		"timestamp": { "type": "string", "format": "date-time" },
+		"vcs": { "type": "object", "properties": { "revision_id": { "type": "string" } } },
+		"intent_id": { "type": "string" },
+		"contributor": { "type": "object" },
+		"files": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": ["relative_path", "conversations"],
+				"properties": {
+					"relative_path": { "type": "string" },
+					"conversations": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"url": { "type": "string" },
+								"ranges": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"required": ["start_line", "end_line", "content_hash"],
+										"properties": {
+											"start_line": { "type": "integer" },
+											"end_line": { "type": "integer" },
+											"content_hash": { "type": "string" }
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

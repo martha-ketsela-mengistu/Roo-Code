@@ -48,6 +48,7 @@ export const toolParamNames = [
 	"message",
 	"cwd",
 	"intent_id",
+	"mutation_class",
 	"follow_up",
 	"task",
 	"size",
@@ -115,7 +116,12 @@ export type NativeToolArgs = {
 	switch_mode: { mode_slug: string; reason: string }
 	update_todo_list: { todos: string }
 	use_mcp_tool: { server_name: string; tool_name: string; arguments?: Record<string, unknown> }
-	write_to_file: { path: string; content: string }
+	write_to_file: {
+		path: string
+		content: string
+		intent_id: string
+		mutation_class: "AST_REFACTOR" | "INTENT_EVOLUTION"
+	}
 	select_active_intent: { intent_id: string }
 	// Add more tools as they are migrated to native protocol
 }
@@ -196,7 +202,7 @@ export interface ReadFileToolUse extends ToolUse<"read_file"> {
 
 export interface WriteToFileToolUse extends ToolUse<"write_to_file"> {
 	name: "write_to_file"
-	params: Partial<Pick<Record<ToolParamName, string>, "path" | "content">>
+	params: Partial<Pick<Record<ToolParamName, string>, "path" | "content" | "intent_id" | "mutation_class">>
 }
 
 export interface SelectActiveIntentToolUse extends ToolUse<"select_active_intent"> {

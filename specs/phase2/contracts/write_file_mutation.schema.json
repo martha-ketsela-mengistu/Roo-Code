@@ -1,0 +1,13 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"title": "write_file mutation payload",
+	"type": "object",
+	"required": ["intent_id", "mutation_class", "file_path", "original_hash", "new_content"],
+	"properties": {
+		"intent_id": { "type": "string" },
+		"mutation_class": { "type": "string", "enum": ["AST_REFACTOR", "INTENT_EVOLUTION", "FORMAT", "OTHER"] },
+		"file_path": { "type": "string" },
+		"original_hash": { "type": "string" },
+		"new_content": { "type": "string" }
+	}
+}

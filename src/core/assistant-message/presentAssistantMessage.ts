@@ -41,6 +41,7 @@ import { codebaseSearchTool } from "../tools/CodebaseSearchTool"
 import { formatResponse } from "../prompts/responses"
 import { sanitizeToolUseId } from "../../utils/tool-id"
 import { defaultHookEngine } from "../../hooks/HookEngine"
+import "../../hooks"
 
 /**
  * Processes and presents assistant message content to the user interface.
@@ -184,6 +185,8 @@ export async function presentAssistantMessage(cline: Task) {
 							.runPostHooks({
 								toolName: mcpBlock.name,
 								params: (mcpBlock.arguments as any) ?? {},
+								intentId: (mcpBlock.arguments as any)?.intent_id ?? undefined,
+								userSessionId: `${cline.taskId}.${cline.instanceId}`,
 								result: resultContent,
 							})
 							.catch((err) => console.error("PostHook error:", err))
@@ -289,6 +292,7 @@ export async function presentAssistantMessage(cline: Task) {
 					toolName: syntheticToolUse.name,
 					params: syntheticToolUse.nativeArgs ?? syntheticToolUse.params ?? {},
 					intentId: (syntheticToolUse.nativeArgs as any)?.intent_id ?? undefined,
+					userSessionId: `${cline.taskId}.${cline.instanceId}`,
 				}
 				const preRes = await defaultHookEngine.runPreHooks(preCtx)
 				if (preRes.action === "block") {
@@ -534,6 +538,8 @@ export async function presentAssistantMessage(cline: Task) {
 						.runPostHooks({
 							toolName: block.name,
 							params: (block.nativeArgs as any) ?? block.params ?? {},
+							intentId: (block.nativeArgs as any)?.intent_id ?? block.params?.intent_id,
+							userSessionId: `${cline.taskId}.${cline.instanceId}`,
 							result: resultContent,
 						})
 						.catch((err) => console.error("PostHook error:", err))
@@ -734,6 +740,7 @@ export async function presentAssistantMessage(cline: Task) {
 					toolName: block.name,
 					params: (block.nativeArgs as any) ?? block.params ?? {},
 					intentId: (block.nativeArgs as any)?.intent_id ?? block.params?.intent_id,
+					userSessionId: `${cline.taskId}.${cline.instanceId}`,
 				}
 				const preRes = await defaultHookEngine.runPreHooks(preCtx)
 				if (preRes.action === "block") {
@@ -762,10 +769,20 @@ export async function presentAssistantMessage(cline: Task) {
 				// If a pre-hook provided a payload (e.g., intent_context_xml), return it as the tool_result
 				if (preRes.action === "allow" && preRes.payload && (preRes.payload as any).intent_context_xml) {
 					const xml = String((preRes.payload as any).intent_context_xml)
+					const traceContext = Array.isArray((preRes.payload as any).intent_trace_context)
+						? ((preRes.payload as any).intent_trace_context as string[])
+						: []
+					const traceBlock =
+						traceContext.length > 0
+							? `\n\n<intent_recent_trace>\n${traceContext
+									.map((line) => `  <entry>${line}</entry>`)
+									.join("\n")}\n</intent_recent_trace>`
+							: ""
+					const contextResult = `${xml}${traceBlock}`
 					cline.pushToolResultToUserContent({
 						type: "tool_result",
 						tool_use_id: sanitizeToolUseId(toolCallId),
-						content: xml,
+						content: contextResult,
 					})
 
 					// Fire post-hooks with the produced result
@@ -774,7 +791,9 @@ export async function presentAssistantMessage(cline: Task) {
 							.runPostHooks({
 								toolName: block.name,
 								params: preCtx.params ?? {},
-								result: xml,
+								intentId: preCtx.intentId,
+								userSessionId: preCtx.userSessionId,
+								result: contextResult,
 							})
 							.catch((err) => console.error("PostHook error:", err))
 					} catch (err) {
